@@ -13,3 +13,18 @@ cdef class ScaleComponent2D(MemComponent):
 
 cdef class ScaleSystem2D(StaticMemGameSystem):
     pass
+
+
+ctypedef struct ScaleStruct3D:
+    unsigned int entity_id
+    float sx
+    float sy
+    float sz
+
+
+cdef class ScaleComponent3D(MemComponent):
+    pass
+
+
+cdef class ScaleSystem3D(StaticMemGameSystem):
+    pass

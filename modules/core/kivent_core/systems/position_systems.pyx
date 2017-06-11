@@ -88,3 +88,99 @@ cdef class PositionSystem2D(StaticMemGameSystem):
 
 
 Factory.register('PositionSystem2D', cls=PositionSystem2D)
+
+
+cdef class PositionComponent3D(MemComponent):
+    '''The component associated with PositionSystem3D.
+
+    **Attributes:**
+        **entity_id** (unsigned int): The entity_id this component is currently
+        associated with. Will be <unsigned int>-1 if the component is
+        unattached.
+
+        **x** (float): The x position of the center of the entity.
+
+        **y** (float): The y position of the center of the entity.
+
+        **z** (float): The z position of the center of the entity.
+
+        **pos** (tuple): A tuple of the (x, y, z) position.
+    '''
+
+    property entity_id:
+        def __get__(self):
+            cdef PositionStruct3D* data = <PositionStruct3D*>self.pointer
+            return data.entity_id
+
+    property x:
+        def __get__(self):
+            cdef PositionStruct3D* data = <PositionStruct3D*>self.pointer
+            return data.x
+        def __set__(self, float value):
+            cdef PositionStruct3D* data = <PositionStruct3D*>self.pointer
+            data.x = value
+
+    property y:
+        def __get__(self):
+            cdef PositionStruct3D* data = <PositionStruct3D*>self.pointer
+            return data.y
+        def __set__(self, float value):
+            cdef PositionStruct3D* data = <PositionStruct3D*>self.pointer
+            data.y = value
+
+    property z:
+        def __get__(self):
+            cdef PositionStruct3D* data = <PositionStruct3D*>self.pointer
+            return data.z
+        def __set__(self, float value):
+            cdef PositionStruct3D* data = <PositionStruct3D*>self.pointer
+            data.z = value
+
+    property pos:
+        def __get__(self):
+            cdef PositionStruct3D* data = <PositionStruct3D*>self.pointer
+            return (data.x, data.y)
+        def __set__(self, tuple new_pos):
+            cdef PositionStruct3D* data = <PositionStruct3D*>self.pointer
+            data.x = new_pos[0]
+            data.y = new_pos[1]
+            data.z = new_pos[2]
+
+
+cdef class PositionSystem3D(StaticMemGameSystem):
+    '''
+    PositionSystem3D abstracts 3 dimensional position data out into its own
+    system so that all other GameSystem can interact with the position of an
+    Entity without having to know specifically about dependent systems.
+    This GameSystem does no processing of its own, just holding data.
+    '''
+    type_size = NumericProperty(sizeof(PositionStruct3D))
+    component_type = ObjectProperty(PositionComponent3D)
+    system_id = StringProperty('position3d')
+
+    def init_component(self, unsigned int component_index,
+        unsigned int entity_id, str zone, args):
+        '''A PositionComponent3D is initialized with an args tuple of (x, y, z).
+        '''
+        cdef float x = args[0]
+        cdef float y = args[1]
+        cdef float z = args[2]
+        cdef MemoryZone memory_zone = self.imz_components.memory_zone
+        cdef PositionStruct3D* component = <PositionStruct3D*>(
+            memory_zone.get_pointer(component_index))
+        component.entity_id = entity_id
+        component.x = x
+        component.y = y
+        component.z = z
+
+    def clear_component(self, unsigned int component_index):
+        cdef MemoryZone memory_zone = self.imz_components.memory_zone
+        cdef PositionStruct3D* pointer = <PositionStruct3D*>(
+            memory_zone.get_pointer(component_index))
+        pointer.entity_id = -1
+        pointer.x = 0.
+        pointer.y = 0.
+        pointer.z = 0.
+
+
+Factory.register('PositionSystem3D', cls=PositionSystem3D)

@@ -13,3 +13,18 @@ cdef class PositionComponent2D(MemComponent):
 
 cdef class PositionSystem2D(StaticMemGameSystem):
     pass
+
+
+ctypedef struct PositionStruct3D:
+    unsigned entity_id
+    float x
+    float y
+    float z
+
+
+cdef class PositionComponent3D(MemComponent):
+    pass
+
+
+cdef class PositionSystem3D(StaticMemGameSystem):
+    pass

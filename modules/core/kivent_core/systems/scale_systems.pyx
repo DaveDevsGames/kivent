@@ -98,3 +98,110 @@ cdef class ScaleSystem2D(StaticMemGameSystem):
 
 
 Factory.register('ScaleSystem2D', cls=ScaleSystem2D)
+
+
+cdef class ScaleComponent3D(MemComponent):
+    '''The component associated with ScaleSystem3D.
+
+    **Attributes:**
+        **entity_id** (unsigned int): The entity_id this component is currently
+        associated with. Will be <unsigned int>-1 if the component is
+        unattached.
+
+        **s** (float): The arithmetic average of the x, y and z scales, when
+        set the x, y and z scales will be set to the value provided. Useful
+        if you want uniform scaling in all axes.
+
+        **sx** (float): The x axis scaling of the entity.
+
+        **sy** (float): The y axis scaling of the entity.
+
+        **sz** (float): The z axis scaling of the entity.
+    '''
+
+    property entity_id:
+        def __get__(self):
+            cdef ScaleStruct3D* data = <ScaleStruct3D*>self.pointer
+            return data.entity_id
+
+    property s:
+        def __get__(self):
+            cdef ScaleStruct3D* data = <ScaleStruct3D*>self.pointer
+            return (data.sx + data.sy + data.sz)/3.
+        def __set__(self, float value):
+            cdef ScaleStruct3D* data = <ScaleStruct3D*>self.pointer
+            data.sx = value
+            data.sy = value
+            data.sz = value
+
+    property sx:
+        def __get__(self):
+            cdef ScaleStruct3D* data = <ScaleStruct3D*>self.pointer
+            return data.sx
+        def __set__(self, float value):
+            cdef ScaleStruct3D* data = <ScaleStruct3D*>self.pointer
+            data.sx = value
+
+    property sy:
+        def __get__(self):
+            cdef ScaleStruct3D* data = <ScaleStruct3D*>self.pointer
+            return data.sy
+        def __set__(self, float value):
+            cdef ScaleStruct3D* data = <ScaleStruct3D*>self.pointer
+            data.sy = value
+
+    property sz:
+        def __get__(self):
+            cdef ScaleStruct3D* data = <ScaleStruct3D*>self.pointer
+            return data.sz
+        def __set__(self, float value):
+            cdef ScaleStruct3D* data = <ScaleStruct3D*>self.pointer
+            data.sz = value
+
+
+cdef class ScaleSystem3D(StaticMemGameSystem):
+    '''
+    ScaleSystem3D abstracts 3 dimensional scale data out into its own
+    system so that all other GameSystem can interact with the scale factor of
+    an Entity without having to know specifically about dependent systems
+    actually controlling the scale. This GameSystem does no processing of its
+    own, just holding data.
+    '''
+    type_size = NumericProperty(sizeof(ScaleStruct3D))
+    component_type = ObjectProperty(ScaleComponent3D)
+    system_id = StringProperty('scale3d')
+
+    def init_component(self, unsigned int component_index,
+        unsigned int entity_id, str zone, args):
+        '''A ScaleComponent3D can be initialized with either a separate
+        scaling factor for x, y and z axis or a single scaling factor for
+        all. If args is a tuple sx will be args[0], sy will be args[1],
+        and sz will be args[2], otherwise sx = sy = sz = args.
+        '''
+        cdef float sx, sy, sz
+        if isinstance(args, tuple):
+            sx = args[0]
+            sy = args[1]
+            sz = args[2]
+        else:
+            sx = args
+            sy = args
+            sz = args
+        cdef MemoryZone memory_zone = self.imz_components.memory_zone
+        cdef ScaleStruct3D* component = <ScaleStruct3D*>(
+            memory_zone.get_pointer(component_index))
+        component.entity_id = entity_id
+        component.sx = sx
+        component.sy = sy
+        component.sz = sz
+
+    def clear_component(self, unsigned int component_index):
+        cdef MemoryZone memory_zone = self.imz_components.memory_zone
+        cdef ScaleStruct3D* pointer = <ScaleStruct3D*>(
+            memory_zone.get_pointer(component_index))
+        pointer.entity_id = -1
+        pointer.sx = 1.
+        pointer.sy = 1.
+        pointer.sz = 1.
+
+Factory.register('ScaleSystem3D', cls=ScaleSystem3D)
