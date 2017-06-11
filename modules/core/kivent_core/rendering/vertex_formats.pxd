@@ -18,13 +18,13 @@ ctypedef struct VertexFormat4F4UB:
 ctypedef struct VertexFormat2F4UB:
     GLfloat[2] pos
     GLubyte[4] v_color
-        
+
 ctypedef struct VertexFormat5F4UB:
     GLfloat[2] pos
     GLfloat rot
     GLfloat[2] center
     GLubyte[4] v_color
-    
+
 ctypedef struct VertexFormat7F4UB:
     GLfloat[2] pos
     GLfloat[2] uvs
@@ -32,6 +32,18 @@ ctypedef struct VertexFormat7F4UB:
     GLfloat[2] center
     GLubyte[4] v_color
 
+ctypedef struct VertexFormat3D5F:
+    GLfloat[3] pos
+    GLfloat[2] uvs
+
+ctypedef struct VertexFormat3D5F4UB:
+    GLfloat[3] pos
+    GLfloat[2] uvs
+    GLubyte[4] v_color
+
+ctypedef struct VertexFormat3D3F4UB:
+    GLfloat[3] pos
+    GLubyte[4] v_color
 
 cdef class FormatConfig:
     cdef unsigned int _size
