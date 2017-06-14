@@ -136,7 +136,7 @@ cdef class Renderer3D(Renderer):
                                 model_vertex = model_vertices[n]
                                 vertex.pos[0] = pos_comp.x + model_vertex.pos[0]
                                 vertex.pos[1] = pos_comp.y + model_vertex.pos[1]
-                                vertex.pos[2] = pos_comp.y + model_vertex.pos[2]
+                                vertex.pos[2] = pos_comp.z + model_vertex.pos[2]
                                 vertex.uvs[0] = model_vertex.uvs[0]
                                 vertex.uvs[1] = model_vertex.uvs[1]
                             index_offset += model._index_count
