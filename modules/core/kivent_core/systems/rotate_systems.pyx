@@ -158,7 +158,7 @@ cdef class RotateSystem3D(StaticMemGameSystem):
         cdef float axis_x = args[0]
         cdef float axis_y = args[1]
         cdef float axis_z = args[2]
-        cdef float angle = args[4]
+        cdef float angle = args[3]
         cdef MemoryZone memory_zone = self.imz_components.memory_zone
         cdef RotateStruct3D* component = <RotateStruct3D*>(
             memory_zone.get_pointer(component_index))
