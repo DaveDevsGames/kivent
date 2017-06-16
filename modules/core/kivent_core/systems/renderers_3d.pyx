@@ -12,6 +12,7 @@ from kivent_core.rendering.batching cimport BatchManager, IndexedBatch
 from kivy.graphics.opengl import glEnable, glDisable, GL_DEPTH_TEST
 from kivy.graphics.cgl cimport GLfloat, GLushort
 from kivent_core.systems.position_systems cimport PositionStruct3D
+from kivent_core.systems.rotate_systems cimport RotateStruct3D
 from kivent_core.rendering.model cimport VertexModel
 from kivent_core.memory_handlers.membuffer cimport Buffer
 from kivent_core.systems.staticmemgamesystem cimport ComponentPointerAggregator
@@ -20,6 +21,8 @@ from kivy.clock import Clock
 from kivent_core.rendering.gl_debug cimport gl_log_debug_message
 from functools import partial
 from kivy.factory import Factory
+from kivy.graphics.transformation cimport Matrix
+from libc.math cimport M_PI, sqrt
 
 cdef class Renderer3D(Renderer):
     '''
@@ -144,5 +147,110 @@ cdef class Renderer3D(Renderer):
                 mesh_instruction = batch.mesh_instruction
                 mesh_instruction.flag_update()
 
+cdef class RotateRenderer3D(Renderer3D):
+    '''
+    Processing Depends On: PositionSystem3D, RotateSystem3D, RotateRenderer3D
+
+    The renderer draws with the VertexFormat3D5F:
+
+    .. code-block:: cython
+
+        ctypedef struct VertexFormat3D5F:
+            GLfloat[3] pos
+            GLfloat[2] uvs
+
+
+    This renderer draws every entity with 3d rotation data.
+
+    '''
+    system_names = ListProperty(['rotate_renderer3d', 'position3d',
+        'rotate3d'])
+    system_id = StringProperty('rotate_renderer3d')
+    vertex_format_size = NumericProperty(sizeof(VertexFormat3D5F))
+
+    def update(self, force_update, dt):
+        cdef IndexedBatch batch
+        cdef list batches
+        cdef unsigned int batch_key
+        cdef unsigned int index_offset, vert_offset
+        cdef RenderStruct* render_comp
+        cdef PositionStruct3D* pos_comp
+        cdef RotateStruct3D* rot_comp
+        cdef VertexFormat3D5F* frame_data
+        cdef GLushort* frame_indices
+        cdef VertexFormat3D5F* vertex
+        cdef VertexModel model
+        cdef GLushort* model_indices
+        cdef VertexFormat3D5F* model_vertices
+        cdef VertexFormat3D5F model_vertex
+        cdef unsigned int used, i, ri, component_count, n, t
+        cdef ComponentPointerAggregator entity_components
+        cdef BatchManager batch_manager = self.batch_manager
+        cdef dict batch_groups = batch_manager.batch_groups
+        cdef CMesh mesh_instruction
+        cdef MemoryBlock components_block
+        cdef void** component_data
+        cdef bint static_rendering = self.static_rendering
+        cdef Matrix xform_mat = Matrix()
+        cdef float rad_angle, magnitude, nx, ny, nz, x, y, z
+
+        for batch_key in batch_groups:
+            batches = batch_groups[batch_key]
+            for batch in batches:
+                if not static_rendering or force_update:
+                    entity_components = batch.entity_components
+                    components_block = entity_components.memory_block
+                    used = components_block.used_count
+                    component_count = entity_components.count
+                    component_data = <void**>components_block.data
+                    frame_data = <VertexFormat3D5F*>batch.get_vbo_frame_to_draw()
+                    frame_indices = <GLushort*>batch.get_indices_frame_to_draw()
+                    index_offset = 0
+                    for t in range(used):
+                        ri = t * component_count
+                        if component_data[ri] == NULL:
+                            continue
+                        render_comp = <RenderStruct*>component_data[ri+0]
+                        vert_offset = render_comp.vert_index
+                        model = <VertexModel>render_comp.model
+                        if render_comp.render:
+                            pos_comp = <PositionStruct3D*>component_data[ri+1]
+                            rot_comp = <RotateStruct3D*>component_data[ri+2]
+                            rad_angle = rot_comp.angle*M_PI/180.0
+                            magnitude = sqrt(rot_comp.axis_x + rot_comp.axis_x *
+                                rot_comp.axis_y + rot_comp.axis_y *
+                                rot_comp.axis_z + rot_comp.axis_z)
+                            if magnitude:
+                                nx = rot_comp.axis_x / magnitude
+                                ny = rot_comp.axis_y / magnitude
+                                nz = rot_comp.axis_z / magnitude
+                            else:
+                                raise ValueError('rotation axis has a magnitude of 0')
+                            xform_mat.identity()
+                            xform_mat.rotate(rad_angle, nx, ny, nz)
+                            xform_mat.translate(pos_comp.x, pos_comp.y, pos_comp.z)
+                            model_vertices = <VertexFormat3D5F*>(
+                                model.vertices_block.data)
+                            model_indices = <GLushort*>model.indices_block.data
+                            for i in range(model._index_count):
+                                frame_indices[i+index_offset] = (
+                                    model_indices[i] + vert_offset)
+                            for n in range(model._vertex_count):
+                                vertex = &frame_data[n + vert_offset]
+                                model_vertex = model_vertices[n]
+                                x, y, z = xform_mat.transform_point(
+                                    model_vertex.pos[0], model_vertex.pos[1],
+                                    model_vertex.pos[2])
+                                vertex.pos[0] = x
+                                vertex.pos[1] = y
+                                vertex.pos[2] = z
+                                vertex.uvs[0] = model_vertex.uvs[0]
+                                vertex.uvs[1] = model_vertex.uvs[1]
+                            index_offset += model._index_count
+                    batch.set_index_count_for_frame(index_offset)
+                mesh_instruction = batch.mesh_instruction
+                mesh_instruction.flag_update()
+
 
 Factory.register('Renderer3D', cls=Renderer3D)
+Factory.register('RotateRenderer3D', cls=RotateRenderer3D)
