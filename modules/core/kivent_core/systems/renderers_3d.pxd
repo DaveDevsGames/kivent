@@ -5,3 +5,6 @@ cdef class Renderer3D(Renderer):
 
 cdef class RotateRenderer3D(Renderer3D):
     pass
+
+cdef class PolyRenderer3D(Renderer3D):
+    pass
