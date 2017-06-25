@@ -123,8 +123,9 @@ modules = {
     'uix': ['cwidget', 'gamescreens'],
     'systems': [
         'gamesystem', 'staticmemgamesystem', 'position_systems',
-        'gameview', 'scale_systems', 'rotate_systems', 'color_systems',
-        'gamemap', 'renderers', 'renderers_3d', 'lifespan', 'animation',
+        'gameview', 'gameview_3d', 'scale_systems', 'rotate_systems',
+        'color_systems', 'gamemap', 'renderers', 'renderers_3d',
+        'lifespan', 'animation',
     ],
 }
 

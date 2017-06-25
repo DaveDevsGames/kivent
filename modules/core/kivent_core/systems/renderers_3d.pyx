@@ -53,8 +53,8 @@ cdef class Renderer3D(Renderer):
     shader_source = StringProperty('position3dshader.glsl')
 
     def __init__(self, **kwargs):
-        self.canvas = RenderContext(use_parent_projection=True,
-                                    nocompiler=True)
+        self.canvas = RenderContext(use_parent_projection= True,
+            use_parent_modelview = True, nocompiler =True)
         if 'shader_source' in kwargs:
             self.canvas.shader.source = kwargs.get('shader_source')
         super(Renderer, self).__init__(**kwargs)
