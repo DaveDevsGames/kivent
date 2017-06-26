@@ -1,0 +1,67 @@
+#:kivy 1.9.0
+#:import path os.path
+#:import dirname os.path.dirname
+#:import main __main__
+
+TestGame:
+
+<TestGame>:
+    gameworld: gameworld
+    app: app
+    GameWorld:
+        id: gameworld
+        gamescreenmanager: gamescreenmanager
+        size_of_gameworld: 100*1024
+        zones: {'general': 10000, 'touch': 100}
+        PositionSystem3D:
+            gameworld: gameworld
+            zones: ['general']
+        RotateSystem3D:
+            gameworld: gameworld
+            zones: ['general']
+        SpinSystem3D:
+            system_id: 'spin3d'
+            gameworld: gameworld
+            updateable: True
+            update_time: 1.0 / 60.0
+        RotatePolyRenderer3D:
+            gameworld: gameworld
+            zones: ['general']
+            shader_source: path.join(dirname(dirname(path.abspath(main.__file__))), 'assets', 'glsl', 'pospoly3dshader.glsl')
+            gameview: 'camera3d'
+        GameView3D:
+            system_id: 'camera3d'
+            gameworld: gameworld
+            size: root.size
+            pos: root.pos
+            updateable: True
+            camera_pos: (40.0, -60.0, 0.0)
+            camera_target: (0.0, 0.0, 0.0)
+            camera_up: (0.0, 0.0, 1.0)
+            camera_aspect: root.size
+    GameScreenManager:
+        id: gamescreenmanager
+        size: root.size
+        pos: root.pos
+        gameworld: gameworld
+
+<GameScreenManager>:
+    MainScreen:
+        id: main_screen
+
+<MainScreen@GameScreen>:
+    name: 'main'
+    FloatLayout:
+        DebugPanel:
+            size_hint: (.2, .1)
+            pos_hint: {'x': .225, 'y': .025}
+
+<DebugPanel>:
+    Label:
+        pos: root.pos
+        size: root.size
+        font_size: root.size[1]*.5
+        halign: 'center'
+        valign: 'middle'
+        color: (1,1,1,1)
+        text: 'FPS: ' + root.fps if root.fps != None else 'FPS:'
