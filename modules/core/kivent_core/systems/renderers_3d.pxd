@@ -15,5 +15,8 @@ cdef class RotateScaleRenderer3D(Renderer3D):
 cdef class PolyRenderer3D(Renderer3D):
     pass
 
+cdef class RotatePolyRenderer3D(Renderer3D):
+    pass
+
 cdef class ColorRenderer3D(Renderer3D):
     pass
