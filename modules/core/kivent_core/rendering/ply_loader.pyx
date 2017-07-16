@@ -626,7 +626,6 @@ Element: {}
                     d = '['
                     if prop.count_type != NO_TYPE:
                         for k in range(element.count):
-                            if k >= 3: break
                             char_type = chr(prop.type)
                             prop_count = PLY.data_to_long(&prop.count, prop.count_type)
                             d += '['
@@ -654,7 +653,6 @@ Element: {}
                                 d += ', '
                     else:
                         for k in range(element.count):
-                            if k >= 3: break
                             char_type = chr(prop.type)
                             if char_type == 'c':
                                 d += str((<int8_t*>prop.data)[k])
