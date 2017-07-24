@@ -9,6 +9,8 @@ from libc.stdio cimport (FILE, fopen, fclose, ftell, fgets, feof, fread, fseek,
 from libc.string cimport strcmp, strcat, strlen, strtok, strcpy, memcpy
 from libc.errno cimport errno, ERANGE
 
+from vertex_formats cimport FormatConfig, format_registrar
+
 cdef char* MAGIC_NUMBER = 'ply'
 cdef char* KW_FORMAT = 'format'
 cdef char* KW_COMMENT = 'comment'
@@ -19,8 +21,7 @@ cdef char* END_HEADER = 'end_header'
 cdef char* FMT_ASCII = 'ascii'
 cdef char* FMT_BIN_LE = 'binary_little_endian'
 cdef char* FMT_BIN_BE = 'binary_big_endian'
-cdef char* VER_1_0 = '1.0'
-VERSIONS[0] = '1.0'
+cdef char* VERSION = '1.0'
 cdef char* TYPE_CHAR = 'char'
 cdef char* TYPE_UCHAR = 'uchar'
 cdef char* TYPE_SHORT = 'short'
@@ -62,10 +63,100 @@ cdef class PLY:
         self.num_elements = 0
         self.elements = NULL
         self._is_loaded = self.load(filename)
+        self.vertex_format_name = 'vertex_format_3d_5f'
+
+        self.elem_name_indices = 'face'
+        self.prop_name_indices = 'vertex_indices'
+        self.elem_name_vertices = 'vertex'
 
     property is_loaded:
         def __get__(self):
             return self._is_loaded
+
+    property vertex_format:
+        def __get__(self):
+            return self.vertex_format_name
+        def __set__(self, bytes format_name):
+            self.vertex_format_name = format_name
+
+    property indices:
+        def __get__(self):
+            cdef list indices = []
+            cdef PLYElement* elem = NULL
+            cdef PLYProp* prop = NULL
+            cdef long prop_count = 0
+            cdef char char_type
+            cdef long index = 0
+            cdef long i, j
+
+            elem = self.get_element_by_name(self.elem_name_indices)
+            if elem != NULL:
+                prop = PLY.get_property_by_name(elem, self.prop_name_indices)
+            if prop != NULL and PLY.property_is_list(prop):
+                for i in range(elem.count):
+                    char_type = prop.type
+                    prop_count = prop.count[i]
+                    if prop_count == 3:
+                        for j in range(prop_count):
+                            if char_type == 'c':
+                                index = (<int8_t**>prop.data_list)[i][j]
+                            elif char_type == 'C':
+                                index = (<uint8_t**>prop.data_list)[i][j]
+                            elif char_type == 's':
+                                index = (<int16_t**>prop.data_list)[i][j]
+                            elif char_type == 'S':
+                                index = (<uint16_t**>prop.data_list)[i][j]
+                            elif char_type == 'i':
+                                index = (<int32_t**>prop.data_list)[i][j]
+                            elif char_type == 'I':
+                                index = (<uint32_t**>prop.data_list)[i][j]
+                            else:
+                                continue
+                            indices.append(index)
+            return indices
+
+    property vertices:
+        def __get__(self):
+            cdef dict vertices = {}
+            cdef dict prop_dict = vertex_format_prop_map.ply_properties[
+                self.vertex_format_name]
+            cdef bytes attr_name, prop_name
+            cdef tuple prop_names
+            cdef list attr_vals
+            cdef char char_type
+            cdef long i
+
+            elem = self.get_element_by_name(self.elem_name_vertices)
+            if elem != NULL:
+                vertices = dict(
+                    (i, dict( (k, []) for k in prop_dict.keys() )) for i in range(elem.count)
+                    )
+                for attr_name, prop_names in prop_dict.items():
+                    for prop_name in prop_names:
+                        prop = PLY.get_property_by_name(elem, prop_name)
+                        if prop != NULL and PLY.property_is_list(prop) != 1:
+                            char_type = prop.type
+                            for i in range(elem.count):
+                                attr_vals = vertices[i][attr_name]
+                                if char_type == 'c':
+                                    attr_vals.append((<int8_t*>prop.data)[i])
+                                elif char_type == 'C':
+                                    attr_vals.append((<uint8_t*>prop.data)[i])
+                                elif char_type == 's':
+                                    attr_vals.append((<int16_t*>prop.data)[i])
+                                elif char_type == 'S':
+                                    attr_vals.append((<uint16_t*>prop.data)[i])
+                                elif char_type == 'i':
+                                    attr_vals.append((<int32_t*>prop.data)[i])
+                                elif char_type == 'I':
+                                    attr_vals.append((<uint32_t*>prop.data)[i])
+                                elif char_type == 'f':
+                                    attr_vals.append((<float*>prop.data)[i])
+                                elif char_type == 'd':
+                                    attr_vals.append((<double*>prop.data)[i])
+                                else:
+                                    continue
+            return vertices
 
     cdef int load(self, char* filename) nogil:
         cdef FILE* fp
@@ -170,8 +261,12 @@ cdef class PLY:
                         if type_size == 0:
                             return 0
                         prop.data = malloc(type_size * elem.count)
+                        prop.count = NULL
+                        prop.data_list = NULL
                     else:
+                        prop.count = <long*>malloc(sizeof(long) * elem.count)
                         prop.data_list = <void**>malloc(sizeof(void*) * elem.count)
+                        prop.data = NULL
                 elif strcmp(token, KW_ELEMENT) == 0:
                     self.num_elements += 1
                     if self.num_elements == 1:
@@ -213,12 +308,10 @@ cdef class PLY:
                     token = strtok(NULL, DELIMETERS)
                     if token == NULL:
                         return 0
-                    for i in range(1):
-                        if strcmp(token, VERSIONS[i]) == 0:
-                            self.version = <char*>malloc(strlen(token)+1)
-                            strcpy(self.version, token)
-                            break
-                    if self.version == NULL:
+                    if strcmp(token, VERSION) == 0:
+                        self.version = <char*>malloc(strlen(token)+1)
+                        strcpy(self.version, token)
+                    else:
                         return 0
                 elif strcmp(token, END_HEADER) == 0:
                     return 1
@@ -246,10 +339,12 @@ cdef class PLY:
         cdef long bytes_read = 0
         cdef long buf_len = 0
         cdef long i, j, k, m
-        cdef long long_count
-        cdef PLYElement* elem
-        cdef PLYProp* prop
-        cdef size_t type_size
+        cdef void* temp_count = NULL
+        cdef long long_count = 0
+        cdef PLYElement* elem = NULL
+        cdef PLYProp* prop = NULL
+        cdef size_t type_size = 0
+        cdef size_t count_type_size = 0
 
         pos = ftell(fp)
         i = 0
@@ -281,10 +376,14 @@ cdef class PLY:
                             prop.type, token) == NULL:
                             return 0
                     else:
-                        if PLY.cast_ascii_data(&prop.count, prop.count_type,
-                            token) == NULL:
+                        count_type_size = PLY.size_of_type(prop.count_type)
+                        temp_count = <void*>malloc(sizeof(count_type_size))
+                        if PLY.cast_ascii_data(temp_count, prop.count_type, token) == NULL:
                             return 0
-                        long_count = PLY.data_to_long(&prop.count, prop.count_type)
+                        prop.count[k] = PLY.data_to_long(temp_count, prop.count_type)
+                        long_count = prop.count[k]
+                        free(temp_count)
+                        temp_count = NULL
                         if long_count == 0:
                             return 0
                         prop.data_list[k] = <void*>malloc(
@@ -315,31 +414,28 @@ cdef class PLY:
         return 1
 
     cdef int read_parse_body_binary(self, FILE* fp, char** ptr_to_buf) nogil:
-        cdef char* buffer = ptr_to_buf[0]
-        cdef char* buf_ptr
-        cdef long buf_size
-        cdef long start_pos
-        cdef long end_pos
-        cdef int i, j, k, m
-        cdef long long_count
-        cdef PLYElement* elem
-        cdef PLYProp* prop
-        cdef size_t type_size
-        cdef size_t bytes_switched
-
-        start_pos = ftell(fp)
+        cdef long start_pos = ftell(fp)
         fseek(fp, 0, SEEK_END)
-        end_pos = ftell(fp)
-        buf_size = end_pos - start_pos
+        cdef long end_pos = ftell(fp)
+        cdef long buf_size = end_pos - start_pos
         ptr_to_buf[0] = <char*>realloc(ptr_to_buf[0], sizeof(char) * buf_size)
-        buffer = ptr_to_buf[0]
+        cdef char* buffer = ptr_to_buf[0]
+        cdef char* buf_ptr = buffer
+        cdef int i, j, k, m
+        cdef void* temp_count = NULL
+        cdef long long_count = 0
+        cdef PLYElement* elem = NULL
+        cdef PLYProp* prop = NULL
+        cdef size_t type_size = 0
+        cdef size_t count_type_size = 0
+        cdef size_t bytes_switched = 0
+
         if buffer == NULL:
             return 0
 
         fseek(fp, start_pos, SEEK_SET)
         fread(buffer, 1, buf_size, fp)
 
-        buf_ptr = buffer
         for i in range(self.num_elements):
             elem = &self.elements[i]
             for j in range(elem.count):
@@ -361,20 +457,22 @@ cdef class PLY:
                             return 0
                         buf_ptr += type_size
                     else:
-                        type_size = PLY.size_of_type(prop.count_type)
-                        if j == 0:
-                            if self.is_same_endian == 0:
-                                if type_size > 1:
-                                    bytes_switched = PLY.switch_endian(buf_ptr, type_size)
-                                    if bytes_switched == 0:
-                                        return 0
-                            if PLY.cast_binary_data(&prop.count, prop.count_type,
-                                buf_ptr) == NULL:
-                                return 0
-                        long_count = PLY.data_to_long(&prop.count, prop.count_type)
+                        count_type_size = PLY.size_of_type(prop.count_type)
+                        temp_count = <void*>malloc(sizeof(count_type_size))
+                        if self.is_same_endian == 0:
+                            if count_type_size > 1:
+                                bytes_switched = PLY.switch_endian(buf_ptr, count_type_size)
+                                if bytes_switched == 0:
+                                    return 0
+                        if PLY.cast_binary_data(temp_count, prop.count_type, buf_ptr) == NULL:
+                            return 0
+                        prop.count[j] = PLY.data_to_long(temp_count, prop.count_type)
+                        long_count = prop.count[j]
+                        free(temp_count)
+                        temp_count = NULL
                         if long_count == 0:
                             return 0
-                        buf_ptr += type_size
+                        buf_ptr += count_type_size
                         type_size = PLY.size_of_type(prop.type)
                         prop.data_list[j] = <void*>malloc(type_size * long_count)
                         for m in range(long_count):
@@ -576,10 +674,40 @@ cdef class PLY:
         bytes[6] = old_bytes[1]
         bytes[7] = old_bytes[0]
 
+    '''def get_vertices_for_format(self, str format_name):
+        vertex_formats = format_registrar._vertex_formats
+        cdef FormatConfig format_config = vertex_formats[format_name]
+
+        return format_config.format_dict'''
+
+    cdef PLYElement* get_element_by_name(self, char* name) nogil:
+        cdef long i
+        cdef PLYElement* elem
+
+        for i in range(self.num_elements):
+            elem = &self.elements[i]
+            if strcmp(elem.name, name) == 0:
+                return elem
+        return NULL
+
+    @staticmethod
+    cdef PLYProp* get_property_by_name(PLYElement* elem, char* name) nogil:
+        cdef long i
+        cdef PLYProp* prop
+
+        for i in range(elem.num_props):
+            prop = &elem.props[i]
+            if strcmp(prop.name, name) == 0:
+                return prop
+        return NULL
+
+    @staticmethod
+    cdef int property_is_list(PLYProp* prop) nogil:
+        if prop.count_type == NO_TYPE:
+            return 0
+        return 1
+
     def __dealloc__(self):
-        '''
-            Object state memory cleanup.
-        '''
         cdef long i, j, k
         cdef PLYElement* elem
         cdef PLYProp* prop
@@ -595,6 +723,7 @@ cdef class PLY:
                 if prop.count_type != NO_TYPE:
                     for k in range(elem.count):
                         free(prop.data_list[k])
+                    free(prop.count)
                     free(prop.data_list)
                 else:
                     free(prop.data)
@@ -606,8 +735,10 @@ cdef class PLY:
         return 'PLY({})'.format(self.filename)
 
     def __str__(self):
-        # Expect this to take a long time for large files.
-        # Not recommended for any use beyond debugging.
+        '''
+            Expect this to take a long time for large files.
+            Not recommended for any use beyond a pretty-print for debugging.
+        '''
         if self._is_loaded:
             s = '''
 Loaded PLY File: {}
@@ -627,7 +758,7 @@ Element: {}
                     if prop.count_type != NO_TYPE:
                         for k in range(element.count):
                             char_type = chr(prop.type)
-                            prop_count = PLY.data_to_long(&prop.count, prop.count_type)
+                            prop_count = prop.count[k]
                             d += '['
                             for m in range(prop_count):
                                 if char_type == 'c':
@@ -642,7 +773,7 @@ Element: {}
                                     d+= str((<int32_t**>prop.data_list)[k][m])
                                 elif char_type == 'I':
                                     d+= str((<uint32_t**>prop.data_list)[k][m])
-                                if char_type == 'f':
+                                elif char_type == 'f':
                                     d+= str((<float**>prop.data_list)[k][m])
                                 elif char_type == 'd':
                                     d+= str((<double**>prop.data_list)[k][m])
@@ -662,7 +793,7 @@ Element: {}
                                 d += str((<int16_t*>prop.data)[k])
                             elif char_type == 'S':
                                 d += str((<uint16_t*>prop.data)[k])
-                            if char_type == 'i':
+                            elif char_type == 'i':
                                 d += str((<int32_t*>prop.data)[k])
                             elif char_type == 'I':
                                 d += str((<uint32_t*>prop.data)[k])
@@ -682,3 +813,54 @@ Element: {}
             return s
         else:
             return 'Unloaded PLY File: {}'.format(self.filename)
+
+cdef class VertexFormatPropertyMap:
+    def __cinit__(self):
+        self._ply_properties = {}
+
+    property ply_properties:
+        def __get__(self):
+            return self._ply_properties
+
+    def map_props_to_format(self, dict props, str format_name):
+        vertex_formats = format_registrar._vertex_formats
+        cdef FormatConfig format_config = vertex_formats[format_name]
+        format_dict = format_config.format_dict
+
+        if not len(props) == len(format_dict):
+            raise ValueError('Wrong nubmer of properties for vertex format.')
+        for attrib_name in props:
+            attrib_len = format_dict[attrib_name][0]
+            if not len(props[attrib_name]) == attrib_len:
+                raise ValueError('Wrong nubmer of properties for vertex format.')
+        self._ply_properties[format_name] = props
+
+vertex_format_prop_map = VertexFormatPropertyMap()
+
+vertex_format_3d_5f_props = {
+    'pos': ('x', 'y', 'z'),
+    'uvs': ('s', 't')
+}
+
+vertex_format_prop_map.map_props_to_format(
+    vertex_format_3d_5f_props, 'vertex_format_3d_5f'
+    )
+
+vertex_format_3d_5f4ub_props = {
+    'pos': ('x', 'y', 'z'),
+    'uvs': ('s', 't'),
+    'v_color': ('red', 'green', 'blue', 'alpha')
+}
+
+vertex_format_prop_map.map_props_to_format(
+    vertex_format_3d_5f4ub_props, 'vertex_format_3d_5f4ub'
+    )
+
+vertex_format_3d_3f4ub_props = {
+    'pos': ('x', 'y', 'z'),
+    'v_color': ('red', 'green', 'blue', 'alpha')
+}
+
+vertex_format_prop_map.map_props_to_format(
+    vertex_format_3d_3f4ub_props, 'vertex_format_3d_3f4ub'
+    )

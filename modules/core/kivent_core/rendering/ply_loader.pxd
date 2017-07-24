@@ -10,8 +10,7 @@ cdef char* END_HEADER
 cdef char* FMT_ASCII
 cdef char* FMT_BIN_LE
 cdef char* FMT_BIN_BE
-cdef char* VER_1_0
-cdef char* VERSIONS[1]
+cdef char* VERSION
 cdef char* TYPE_CHAR
 cdef char* TYPE_UCHAR
 cdef char* TYPE_SHORT
@@ -45,11 +44,11 @@ cdef char* SYS_ENDIAN
 
 cdef struct PLYProp:
     char* name
-    char count_type
-    void* count
     char type
     void* data
     void** data_list
+    char count_type
+    long* count
 
 cdef struct PLYElement:
     char* name
@@ -66,6 +65,11 @@ cdef class PLY:
     cdef unsigned int num_elements
     cdef PLYElement* elements
     cdef bint _is_loaded
+    cdef char* vertex_format_name
+    cdef char* elem_name_indices
+    cdef char* prop_name_indices
+    cdef char* elem_name_vertices
+
     cdef int load(self, char* filename) nogil
     cdef int check_magic_number(self, FILE* fp, char** ptr_to_buf, size_t buf_size) nogil
     cdef int read_parse_header(self, FILE* fp, char** ptr_to_buf, size_t buf_size) nogil
@@ -89,3 +93,11 @@ cdef class PLY:
     cdef void switch_endian4(char* bytes) nogil
     @staticmethod
     cdef void switch_endian8(char* bytes) nogil
+    cdef PLYElement* get_element_by_name(self, char* name) nogil
+    @staticmethod
+    cdef PLYProp* get_property_by_name(PLYElement* elem, char* name) nogil
+    @staticmethod
+    cdef int property_is_list(PLYProp* prop) nogil
+
+cdef class VertexFormatPropertyMap:
+    cdef dict _ply_properties
