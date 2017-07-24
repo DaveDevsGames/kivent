@@ -12,6 +12,7 @@ try:
 except:
     import pickle
 from kivent_core.rendering.svg_loader cimport SVG, SVGModelInfo
+from kivent_core.rendering.ply_loader cimport PLY
 from kivent_core.managers.game_manager cimport GameManager
 
 cdef class ModelManager(GameManager):
@@ -179,6 +180,41 @@ cdef class ModelManager(GameManager):
         return self.load_model(format_name, vertex_count, index_count,
             model_name, indices=indices, vertices=vertices)
 
+    def load_model_from_ply(self, str file_to_load, str format_name,
+        str model_name=None):
+        '''
+        Loads a Stanford PLY format model.
+
+        Args:
+            file_to_load (str): Name of the file to load.
+
+            format_name (str): The name of the vertex format this model should
+            be created with. The PLY file should provide matching properties.
+
+            model_name (str): The name to store the model under. If unspecified
+            a name will be generated from the filename.
+
+        Return:
+            str: Returns the actual name the model has been stored under if
+            successful, otherwise None.
+
+        Raises:
+            IOError: The file could not be loaded.
+
+        '''
+        if model_name is None:
+            model_name = path.splitext(path.basename(file_to_load))[0]
+        cdef PLY ply = PLY(file_to_load)
+        if not ply.is_loaded:
+            raise IOError('PLY file {} load failed.'.format(file_to_load))
+        ply.vertex_format = format_name
+        indices = ply.indices
+        index_count = len(indices)
+        vertices = ply.vertices_for_format(format_name)
+        vertex_count = max(vertices) + 1
+        return self.load_model(format_name, vertex_count, index_count,
+            model_name, indices=indices, vertices=vertices)
+
     def allocate(self, master_buffer, gameworld):
         '''
         Allocates space for loading models. Typically called as part of
@@ -248,14 +284,14 @@ cdef class ModelManager(GameManager):
 
     def load_model_from_model_info(self, SVGModelInfo info, str svg_name):
         '''
-        Turns the data in a SVGModelInfo to an actual Model for use in 
-        your game. 
+        Turns the data in a SVGModelInfo to an actual Model for use in
+        your game.
 
         Args:
 
             info (SVGModelInfo): The data for the model you want to load.
 
-            svg_name (str): The name of the svg file, previously returned by 
+            svg_name (str): The name of the svg file, previously returned by
             **get_model_info_for_svg**.
 
         Return:
@@ -264,7 +300,7 @@ cdef class ModelManager(GameManager):
 
         '''
         model_key = self.load_model(
-            'vertex_format_2f4ub', info.vertex_count, 
+            'vertex_format_2f4ub', info.vertex_count,
             info.index_count, svg_name + '_' + info.element_id,
             indices=info.indices, vertices=info.vertices,
             )
@@ -273,10 +309,10 @@ cdef class ModelManager(GameManager):
 
     def combine_model_infos(self, list infos):
         '''
-        Takes a list of SVGModelInfo objects and combines them into the 
-        minimum number of models that will fit that data. Each model will 
-        be no more than 65535 vertices, as this is the limit to number of 
-        vertices in a single model in ES2.0. 
+        Takes a list of SVGModelInfo objects and combines them into the
+        minimum number of models that will fit that data. Each model will
+        be no more than 65535 vertices, as this is the limit to number of
+        vertices in a single model in ES2.0.
 
         Args:
             infos (list): List of SVGModelInfo to combine.
@@ -303,7 +339,7 @@ cdef class ModelManager(GameManager):
 
     def get_center_and_bbox_from_infos(self, list infos):
         '''
-        Gets the bounding box and center info for the provided list of 
+        Gets the bounding box and center info for the provided list of
         SVGModelInfo.
 
         Args:
@@ -311,10 +347,10 @@ cdef class ModelManager(GameManager):
             and center for.
 
         Return:
-            dict: with keys 'center' and 'bbox'. center is a 2-tuple of 
+            dict: with keys 'center' and 'bbox'. center is a 2-tuple of
             center_x, center_y coordinates. bbox is a 4-tuple of leftmost x,
             bottom y, rightmost x, top y.
-            
+
         '''
         cdef float top, left, right, bot, x, y
         initial_pos = infos[0].vertices[0]['pos']
@@ -351,8 +387,8 @@ cdef class ModelManager(GameManager):
     def get_model_info_for_svg(self, str source, str svg_name=None,
         custom_fields=None):
         '''
-        Returns the SVGModelInfo objects representing the elements in an 
-        svg file. You can then parse this data depending on your needs 
+        Returns the SVGModelInfo objects representing the elements in an
+        svg file. You can then parse this data depending on your needs
         before loading the final assets. Use **load_model_from_model_info**
         to load your assets.
         '''
